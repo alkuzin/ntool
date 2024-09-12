@@ -47,6 +47,8 @@ private:
      */
     void send(const icmphdr& header, sockaddr_in& addr) const;
 
+    void recv(ICMP& reply, sockaddr_in& addr, std::uint8_t& ttl) const;
+
 public:
     /** @brief Ping default constructor.*/
     Ping(void);
