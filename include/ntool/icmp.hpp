@@ -32,11 +32,17 @@
 
 namespace ntool {
 
+/**
+ * @brief Get destination unreachable description.
+ * 
+ * @param [in] code - given ICMP type sub-code.
+ * @return const char* 
+ */
+const char *unreach_decription(std::uint8_t code);
+
 class ICMP
 {
     icmphdr m_header; // ICMP header structure
-
-private:
 
 public:
     /** @brief ICMP object default constructor.*/
@@ -50,7 +56,7 @@ public:
     ICMP(const icmphdr& header);
 
     /**
-     * @brief Construct a new ICMP object
+     * @brief Construct a new ICMP object.
      * 
      * @param [in] type - given message type.
      * @param [in] code - given type sub-code.
@@ -61,6 +67,23 @@ public:
 
     /** @brief ICMP virtual destructor.*/
     virtual ~ICMP(void) = default;
+
+    /**
+     * @brief Set ICMP object.
+     * 
+     * @param [in] header - given ICMP header structure.
+     */
+    void set(const icmphdr& header);
+    
+    /**
+     * @brief Set ICMP object.
+     * 
+     * @param [in] type - given message type.
+     * @param [in] code - given type sub-code.
+     * @param [in] id - given identificator.
+     * @param [in] sequence - given sequence number.
+     */
+    void set(std::uint8_t type, std::uint8_t code, std::uint16_t id, std::uint16_t sequence);
 
     /**
      * @brief Get ICMP header.
