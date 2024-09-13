@@ -40,6 +40,16 @@ namespace ntool {
  */
 const char *unreach_decription(std::uint8_t code);
 
+/**
+ * @brief Get checksum of given buffer.
+ * 
+ * @param [in] buffer - given buffer.
+ * @param [in] size - given buffer size in bytes.
+ * @return checksum.
+ */
+std::uint16_t calculate_checksum(void *buffer, std::size_t size);
+
+
 class ICMP
 {
     icmphdr m_header; // ICMP header structure
@@ -95,9 +105,9 @@ public:
     /**
      * @brief Set the ICMP packet checksum.
      * 
-     * @return checksum.
+     * @param [in] chsum - given checksum to set.
      */
-    std::uint16_t set_checksum(void);
+    void checksum(std::uint16_t chsum);
 
     /**
      * @brief Get message type.

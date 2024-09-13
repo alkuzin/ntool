@@ -23,92 +23,6 @@
 
 namespace ntool {
 
-    ICMP::ICMP(const icmphdr& header)
-    {
-        std::memset(&m_header, 0, sizeof(m_header));
-
-        m_header = header;
-    }
-
-    ICMP::ICMP(std::uint8_t type, std::uint8_t code, std::uint16_t id, std::uint16_t sequence)
-    {
-        std::memset(&m_header, 0, sizeof(m_header));
-        
-        m_header.type             = type;
-        m_header.code             = code;
-        m_header.un.echo.id       = id;
-        m_header.un.echo.sequence = sequence;
-        m_header.checksum         = set_checksum();
-    }
-    
-    std::uint16_t ICMP::set_checksum(void)
-    {
-        std::uint16_t *buf   = reinterpret_cast<std::uint16_t *>(&m_header);
-        std::size_t   len    = sizeof(m_header);
-        std::uint32_t sum    = 0;
-        std::uint16_t result = 0;
-
-        for (sum = 0; len > 1; len -= 2)
-            sum += *buf++;
-
-        if (len == 1)
-            sum += *reinterpret_cast<std::uint8_t *>(buf);
-        
-        sum     = (sum >> 0x10) + (sum & 0xFFFF);
-        sum    += (sum >> 0x10);
-        result  = ~sum;
-
-        return result;
-    }
-
-    void ICMP::set(const icmphdr& header)
-    {
-        std::memset(&m_header, 0, sizeof(m_header));
-
-        m_header = header;
-    }
-    
-    void ICMP::set(std::uint8_t type, std::uint8_t code, std::uint16_t id, std::uint16_t sequence)
-    {
-        std::memset(&m_header, 0, sizeof(m_header));
-        
-        m_header.type             = type;
-        m_header.code             = code;
-        m_header.un.echo.id       = id;
-        m_header.un.echo.sequence = sequence;
-        m_header.checksum         = set_checksum();
-    }
-
-    icmphdr ICMP::header(void) const
-    {
-        return m_header;
-    }
-
-    std::uint8_t ICMP::type(void) const
-    {
-        return m_header.type;
-    }
-    
-    std::uint8_t ICMP::code(void) const
-    {
-        return m_header.code;
-    }
-
-    std::uint16_t ICMP::checksum(void) const
-    {
-        return m_header.checksum;
-    }
-
-    std::uint16_t ICMP::id(void) const
-    {
-        return m_header.un.echo.id;
-    }
-
-    std::uint16_t ICMP::sequence(void) const
-    {
-        return m_header.un.echo.sequence;
-    }
-
     static const std::array<std::string_view, 16> unreach_table = {
         "Destination network unreachable",
         "Destination host unreachable",
@@ -132,5 +46,86 @@ namespace ntool {
     {
         return unreach_table[code].data();
     }
+    
+    std::uint16_t calculate_checksum(void *buffer, std::size_t size)
+    {
+        std::uint16_t *buf   = reinterpret_cast<std::uint16_t *>(buffer);
+        std::uint32_t sum    = 0;
+        std::uint16_t result = 0;
 
+        for (sum = 0; size > 1; size -= 2)
+            sum += *buf++;
+
+        if (size == 1)
+            sum += *reinterpret_cast<std::uint8_t *>(buf);
+        
+        sum     = (sum >> 0x10) + (sum & 0xFFFF);
+        sum    += (sum >> 0x10);
+        result  = ~sum;
+
+        return result;
+    }
+
+    ICMP::ICMP(const icmphdr& header)
+    {
+        set(header);
+    }
+
+    ICMP::ICMP(std::uint8_t type, std::uint8_t code, std::uint16_t id, std::uint16_t sequence)
+    {
+        set(type, code, id, sequence);
+    }
+    
+    void ICMP::set(const icmphdr& header)
+    {
+        std::memset(&m_header, 0, sizeof(m_header));
+
+        m_header = header;
+    }
+    
+    void ICMP::set(std::uint8_t type, std::uint8_t code, std::uint16_t id, std::uint16_t sequence)
+    {
+        std::memset(&m_header, 0, sizeof(m_header));
+        
+        m_header.type             = type;
+        m_header.code             = code;
+        m_header.un.echo.id       = id;
+        m_header.un.echo.sequence = sequence;
+        m_header.checksum         = calculate_checksum(&m_header, sizeof(m_header));
+    }
+
+    icmphdr ICMP::header(void) const
+    {
+        return m_header;
+    }
+
+    std::uint8_t ICMP::type(void) const
+    {
+        return m_header.type;
+    }
+    
+    std::uint8_t ICMP::code(void) const
+    {
+        return m_header.code;
+    }
+
+    std::uint16_t ICMP::checksum(void) const
+    {
+        return m_header.checksum;
+    }
+    
+    void ICMP::checksum(std::uint16_t chsum)
+    {
+        m_header.checksum = chsum;
+    }
+
+    std::uint16_t ICMP::id(void) const
+    {
+        return m_header.un.echo.id;
+    }
+
+    std::uint16_t ICMP::sequence(void) const
+    {
+        return m_header.un.echo.sequence;
+    }
 } // namespace ntool
