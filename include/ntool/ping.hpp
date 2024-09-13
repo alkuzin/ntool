@@ -47,7 +47,13 @@ private:
      */
     void send(const icmphdr& header, sockaddr_in& addr) const;
 
-    void recv(ICMP& reply, sockaddr_in& addr, std::uint8_t& ttl) const;
+    /**
+     * @brief Receive ICMP packet from destination address.
+     * 
+     * @param [out] reply - given object to store ICMP packet.
+     * @param [in] packet - given received packet to process.
+     */
+    void recv(ICMP& reply, sockaddr_in& addr) const;
 
 public:
     /** @brief Ping default constructor.*/
@@ -60,8 +66,9 @@ public:
      * @brief Ping given target. 
      * 
      * @param [in] target - given target to ping.
+     * @param [in] n - given number of ping.
      */
-    void ping(const std::string_view& target);
+    void ping(const std::string_view& target, std::uint16_t n = 4);
 };
 
 } // namespace ntool

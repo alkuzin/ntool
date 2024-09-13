@@ -16,38 +16,50 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <ntool/utils.hpp>
+#include <ntool/ping.hpp>
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <cstring>
-
-#include <ntool/utils.hpp>
-#include <ntool/ping.hpp>
-
 #include <thread>
 #include <chrono>
 
 
+namespace ntool {
+
+struct Packet {
+    icmphdr   header;
+    std::byte payload[56];
+};
+
 using  TimePoint = std::chrono::time_point<std::chrono::high_resolution_clock>;
-static TimePoint m_begin_time; // sending packet time
-static TimePoint m_end_time;   // receiving packet time
+static TimePoint    begin_time; // sending packet time
+static TimePoint    end_time;   // receiving packet time
+static std::uint8_t ttl;        // packet time to live
 
 static const uint32_t PACKET_SIZE = 64;
-
-namespace ntool {
+static std::uint16_t  ping_count  = 1;
 
 /**
  * @brief Process ICMP packet.
  * 
  * @param [out] reply - given object to store ICMP packet.
  * @param [in] packet - given received packet to process.
- * @param [out] ttl - given variable to store packet time to live.
  */
-static void process_packet(ICMP& reply, std::byte *packet, std::uint8_t& ttl);
+static void process_packet(ICMP& reply, std::byte *packet);
+
+/**
+ * @brief Set the packet to send.
+ * 
+ * @param [out] packet - given packet to set.
+ * @param [in] header - given ICMP header.
+ */
+static void set_packet(Packet& packet, const icmphdr& header);
 
 
 Ping::Ping(void) : m_socket(RawSocket(AF_INET, IPPROTO_ICMP)) {}
 
-void Ping::ping(const std::string_view& target)
+void Ping::ping(const std::string_view& target, std::uint16_t n)
 {
     // TODO: handle "localhost", IPv4 (x.x.x.x) & domain names (e.g. example.com)
     utils::terminate_if_not_root();
@@ -55,7 +67,8 @@ void Ping::ping(const std::string_view& target)
     // Set destination address
     sockaddr_in addr;
     addr.sin_family      = AF_INET;
-    addr.sin_addr.s_addr = inet_addr(target.data());    
+    addr.sin_addr.s_addr = inet_addr(target.data());
+    addr.sin_port        = 0;
 
     std::printf("Pinging %s [%s] with %u bytes of data:\n", target.data(), inet_ntoa(addr.sin_addr), PACKET_SIZE);
 
@@ -64,31 +77,26 @@ void Ping::ping(const std::string_view& target)
 
     std::chrono::duration<double, std::milli> time;
     const char *reply_ip_str;
-    std::uint16_t seq = 1;
-    std::uint8_t ttl;
-
-    while (true) {
-        request.set(
-            ICMP_ECHO, // echo request
-            0,         // echo reply
-            getpid(),  // current process identificator
-            seq++      // sequence number
-        );
         
+    while (ping_count <= n) {
+        request.set(
+            ICMP_ECHO,   // echo request
+            0,           // echo reply
+            getpid(),    // current process identificator
+            ping_count++ // sequence number
+        );
+
         send(request.header(), addr);
-        recv(reply, addr, ttl);
+        recv(reply, addr);
         
         // Handle received ICMP packet
         reply_ip_str = inet_ntoa(addr.sin_addr);
         
         switch (reply.type())
         {
-        // TODO: fix issue with sending more packets when pinging 127.0.0.1
-        case ICMP_ECHO:
-            continue;
-
+        case ICMP_ECHO: // TODO: handle 127.0.0.1 echo requests correctly (icmp_seq issue)
         case ICMP_ECHOREPLY:
-            time = m_end_time - m_begin_time;
+            time = end_time - begin_time;
 
             std::printf("%u bytes from %s: icmp_seq=%u ttl=%u time=%.3lf ms\n",
                 PACKET_SIZE,
@@ -105,10 +113,15 @@ void Ping::ping(const std::string_view& target)
                 reply.sequence(),
                 unreach_decription(reply.code())
             );
+            std::exit(EXIT_SUCCESS);
             break;
         
         default:
-            std::printf("Received ICMP packet [type: %d  code: %d]", reply.type(), reply.code());
+            std::printf("Received ICMP packet [type: %d code: %d id: %d]\n",
+                reply.type(),
+                reply.code(),
+                reply.id()
+            );
             break;
         }
         
@@ -119,38 +132,54 @@ void Ping::ping(const std::string_view& target)
 
 void Ping::send(const icmphdr& header, sockaddr_in& addr) const
 {
-    std::byte packet[PACKET_SIZE];
-    auto header_size = sizeof(header);
+    static Packet packet;
+    set_packet(packet, header);
 
-    std::memcpy(packet, &header, header_size);
-
-    auto ret = sendto(m_socket.fd(), packet, header_size, 0, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
-    m_begin_time = std::chrono::high_resolution_clock::now();
+    auto ret   = sendto(m_socket.fd(), &packet, sizeof(packet), 0, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
+    begin_time = std::chrono::high_resolution_clock::now();
 
     if (ret <= 0)
         utils::error("[ERROR] error to send ICMP packet");
 }
 
-void Ping::recv(ICMP& reply, sockaddr_in& addr, std::uint8_t& ttl) const
+void Ping::recv(ICMP& reply, sockaddr_in& addr) const
 {
     std::byte packet[PACKET_SIZE];
 
-    auto len   = static_cast<socklen_t>(sizeof(addr));
-    auto ret   = recvfrom(m_socket.fd(), packet, sizeof(packet), 0, reinterpret_cast<sockaddr*>(&addr), &len);
-    m_end_time = std::chrono::high_resolution_clock::now();
+    auto len = static_cast<socklen_t>(sizeof(addr));
+    auto ret = recvfrom(m_socket.fd(), packet, sizeof(packet), 0, reinterpret_cast<sockaddr*>(&addr), &len);
+    end_time = std::chrono::high_resolution_clock::now();
 
     if (ret <= 0)
         utils::error("[ERROR] error to receive ICMP packet");
 
-    process_packet(reply, packet, ttl);
+    process_packet(reply, packet);
 }
 
-static void process_packet(ICMP& reply, std::byte *packet, std::uint8_t& ttl)
+static void set_packet(Packet& packet, const icmphdr& header)
 {
-    iphdr   *ip_header   = (iphdr *)packet;
-    icmphdr *icmp_header = (icmphdr *)(packet + (ip_header->ihl * 4));
+    // clearing packet from garbage
+    std::memset(&packet, 0, sizeof(packet));
+    packet.header = header;
+    
+    // setting payload
+    auto i = 0x0;
+    for (auto& x : packet.payload) {
+        x = static_cast<std::byte>(0x30 + i);
+        ++i;
+    }
 
+    // clearing previous checksum & setting new including payload
+    packet.header.checksum = 0;
+    packet.header.checksum = calculate_checksum(&packet, sizeof(packet));
+}
+
+static void process_packet(ICMP& reply, std::byte *packet)
+{
     icmphdr header;
+    iphdr   *ip_header   = reinterpret_cast<iphdr*>(packet);
+    icmphdr *icmp_header = reinterpret_cast<icmphdr*>(packet + (ip_header->ihl * 4));
+    
     std::memcpy(&header, icmp_header, sizeof(header));
 
     reply.set(header);
