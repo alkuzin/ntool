@@ -21,6 +21,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <signal.h>
+#include <netdb.h>
 #include <cstring>
 #include <thread>
 #include <chrono>
@@ -45,7 +46,6 @@ static double rtt_min  = 0.0; // minimum round-trip time recorded
 static double rtt_avr  = 0.0; // average round-trip time recorded
 static double rtt_max  = 0.0; // maximum round-trip time recorded
 static double rtt_mdev = 0.0; // mean deviation
-
 
 // Auxilar functions ------------------------------------------------------------------
 
@@ -77,13 +77,14 @@ static void process_packet(ICMP& reply, std::byte *packet)
     ttl = ip_header->ttl;
 }
 
+/** @brief Get ping test statistics.*/
 static void summary(void)
 {
     std::printf("\n--- %s ping statistics ---\n", target_ip_str);
     std::printf("%u packets transmitted, %u received, %u%% packet loss\n",
         transmitted_packets,
         received_packets,
-        (100 - ((received_packets / transmitted_packets) * 100))
+        (100 - ((received_packets / transmitted_packets) * 100)) // TODO: fix issue with calculation in case of missing packet
     );
 
     if (rtt.empty())
@@ -108,6 +109,32 @@ static void interrupt_handler(int sig)
     std::exit(sig); // Exit the program
 }
 
+/**
+ * @brief Get IP addres of target.
+ * 
+ * @param [in] target - given target text representation.
+ * @return IP address.
+ */
+static in_addr_t handle_target(const std::string_view& target)
+{
+    sockaddr_in addr;
+
+    if (target.compare("localhost") == 0)
+        return inet_addr("127.0.0.1");
+
+    if (inet_pton(AF_INET, target.data(), &(addr.sin_addr)) != 0)
+        return addr.sin_addr.s_addr;
+    else {
+        hostent *he = gethostbyname(target.data());
+        
+        if (!he)
+            utils::error("[ERROR] cannot resolve the target");
+        
+        addr.sin_addr = *reinterpret_cast<in_addr*>(he->h_addr);
+        return addr.sin_addr.s_addr;
+    }
+}
+
 // Ping implementation ------------------------------------------------------------------
 
 Ping::Ping(void) : m_socket(RawSocket(AF_INET, IPPROTO_ICMP))
@@ -117,14 +144,13 @@ Ping::Ping(void) : m_socket(RawSocket(AF_INET, IPPROTO_ICMP))
 
 void Ping::ping(const std::string_view& target, std::uint16_t n)
 {
-    // TODO: handle "localhost", IPv4 (x.x.x.x) & domain names (e.g. example.com)
     utils::terminate_if_not_root();
     set_default_payload();
 
     // Set destination address
     sockaddr_in addr;
     addr.sin_family      = AF_INET;
-    addr.sin_addr.s_addr = inet_addr(target.data());
+    addr.sin_addr.s_addr = handle_target(target);
     addr.sin_port        = 0;
 
     std::printf("Pinging %s [%s] with %u bytes of data:\n", target.data(), inet_ntoa(addr.sin_addr), ICMP_PACKET_SIZE);
