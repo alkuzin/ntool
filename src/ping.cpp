@@ -26,6 +26,7 @@
 #include <thread>
 #include <chrono>
 #include <vector>
+#include <cmath>
 
 namespace ntool {
 
@@ -80,11 +81,13 @@ static void process_packet(ICMP& reply, std::byte *packet)
 /** @brief Get ping test statistics.*/
 static void summary(void)
 {
+    auto packet_loss = std::ceil(100.0 - ((received_packets / transmitted_packets) * 100.0));
+    
     std::printf("\n--- %s ping statistics ---\n", target_ip_str);
     std::printf("%u packets transmitted, %u received, %u%% packet loss\n",
         transmitted_packets,
         received_packets,
-        (100 - ((received_packets / transmitted_packets) * 100)) // TODO: fix issue with calculation in case of missing packet
+        static_cast<std::uint32_t>(packet_loss)
     );
 
     if (rtt.empty())
