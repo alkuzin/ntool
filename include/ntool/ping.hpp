@@ -57,7 +57,7 @@ private:
 
 public:
     /** @brief Ping default constructor.*/
-    Ping(void);
+    explicit Ping(void);
 
     /** @brief Ping virtual destructor.*/
     virtual ~Ping(void) = default;
