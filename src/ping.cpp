@@ -20,9 +20,11 @@
 #include <ntool/ping.hpp>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <signal.h>
 #include <cstring>
 #include <thread>
 #include <chrono>
+#include <vector>
 
 namespace ntool {
 
@@ -32,7 +34,18 @@ static TimePoint    end_time;   // receiving packet time
 static std::uint8_t ttl;        // packet time to live
 
 static ICMPPayload default_payload {};
+static const char *target_ip_str;
 static std::uint16_t ping_count = 1;
+static std::uint16_t transmitted_packets = 0;
+static std::uint16_t received_packets    = 0;
+
+//  Round-trip time (RTT)
+static std::vector<double> rtt;
+static double rtt_min  = 0.0; // minimum round-trip time recorded
+static double rtt_avr  = 0.0; // average round-trip time recorded
+static double rtt_max  = 0.0; // maximum round-trip time recorded
+static double rtt_mdev = 0.0; // mean deviation
+
 
 // Auxilar functions ------------------------------------------------------------------
 
@@ -64,9 +77,43 @@ static void process_packet(ICMP& reply, std::byte *packet)
     ttl = ip_header->ttl;
 }
 
+static void summary(void)
+{
+    std::printf("\n--- %s ping statistics ---\n", target_ip_str);
+    std::printf("%u packets transmitted, %u received, %u%% packet loss\n",
+        transmitted_packets,
+        received_packets,
+        (100 - ((received_packets / transmitted_packets) * 100))
+    );
+
+    if (rtt.empty())
+        utils::error("[ERROR] vector of RTT is empty");
+
+    rtt_min  = *(std::min_element(rtt.begin(), rtt.end()));
+    rtt_avr  = utils::mean(rtt.begin(), rtt.end());
+    rtt_max  = *(std::max_element(rtt.begin(), rtt.end()));
+    rtt_mdev = utils::mdev(rtt.begin(), rtt.end());
+
+    std::printf("rtt min/avg/max/mdev = %.3f/%.3f/%.3f/%.3f ms\n", rtt_min, rtt_avr, rtt_max, rtt_mdev);
+}
+
+/**
+ * @brief Handle keyboard interrupt.
+ * 
+ * @param [in] sig - given signal number.
+ */
+static void interrupt_handler(int sig)
+{
+    summary();
+    std::exit(sig); // Exit the program
+}
+
 // Ping implementation ------------------------------------------------------------------
 
-Ping::Ping(void) : m_socket(RawSocket(AF_INET, IPPROTO_ICMP)) {}
+Ping::Ping(void) : m_socket(RawSocket(AF_INET, IPPROTO_ICMP))
+{
+    signal(SIGINT, interrupt_handler);
+}
 
 void Ping::ping(const std::string_view& target, std::uint16_t n)
 {
@@ -86,13 +133,13 @@ void Ping::ping(const std::string_view& target, std::uint16_t n)
     ICMP request, reply;
 
     std::chrono::duration<double, std::milli> time;
-    const char *reply_ip_str;
+    pid_t pid = getpid();
         
     while (ping_count <= n) {
         request.set(
             ICMP_ECHO,   // echo request
             0,           // echo reply
-            getpid(),    // current process identificator
+            pid,         // current process identificator
             ping_count++ // sequence number
         );
 
@@ -100,30 +147,33 @@ void Ping::ping(const std::string_view& target, std::uint16_t n)
         recv(reply, addr);
         
         // Handle received ICMP packet
-        reply_ip_str = inet_ntoa(addr.sin_addr);
+        target_ip_str = inet_ntoa(addr.sin_addr);
         
         switch (reply.type())
         {
         case ICMP_ECHO: // TODO: handle 127.0.0.1 echo requests correctly (icmp_seq issue)
         case ICMP_ECHOREPLY:
             time = end_time - begin_time;
+            rtt.push_back(time.count());
 
-            std::printf("%u bytes from %s: icmp_seq=%u ttl=%u time=%.3lf ms\n",
+            std::printf("%u bytes from %s: icmp_seq=%u ttl=%u rtt=%.3lf ms\n",
                 ICMP_PACKET_SIZE,
-                reply_ip_str,
+                target_ip_str,
                 reply.sequence(),
                 ttl,
-                time.count()
+                rtt.back()
             );
             break;
         
         case ICMP_UNREACH:
             std::printf("From %s: icmp_seq=%u %s\n",
-                reply_ip_str,
+                target_ip_str,
                 reply.sequence(),
                 unreach_decription(reply.code())
             );
-            std::exit(EXIT_SUCCESS);
+
+            if (kill(pid, SIGINT) == -1)
+                utils::error("[ERROR] failde to send SIGINT");
             break;
         
         default:
@@ -138,19 +188,21 @@ void Ping::ping(const std::string_view& target, std::uint16_t n)
         // Delay time for 1 second
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
+    summary();
 }
 
 void Ping::send(const icmphdr& header, sockaddr_in& addr) const
 {
     ICMPPacket packet(header, default_payload);
 
-    auto data = packet.data();
-
+    auto data  = packet.data();
     auto ret   = sendto(m_socket.fd(), &data, sizeof(data), 0, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
     begin_time = std::chrono::high_resolution_clock::now();
 
     if (ret <= 0)
         utils::error("[ERROR] error to send ICMP packet");
+    
+    transmitted_packets++;
 }
 
 void Ping::recv(ICMP& reply, sockaddr_in& addr) const
@@ -164,6 +216,7 @@ void Ping::recv(ICMP& reply, sockaddr_in& addr) const
     if (ret <= 0)
         utils::error("[ERROR] error to receive ICMP packet");
 
+    received_packets++;
     process_packet(reply, packet);
 }
 
