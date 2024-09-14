@@ -26,6 +26,7 @@
 #ifndef _NTOOL_UTILS_HPP_
 #define _NTOOL_UTILS_HPP_
 
+#include <numeric>
 #include <string>
 
 namespace ntool {
@@ -40,6 +41,44 @@ void terminate_if_not_root(void);
  * @param msg - given error message.
  */
 void error(const std::string_view& msg);
+
+/**
+ * @brief Calculate mean value of given container.
+ * 
+ * @param [in] begin - given begin iterator.
+ * @param [in] end - given end iterator.
+ * @return mean value.
+ */
+template <typename Iterator>
+double mean(Iterator begin, Iterator end)
+{
+    if (begin == end)
+        return 0.0;
+
+    return std::accumulate(begin, end, 0.0) / std::distance(begin, end);
+}
+
+/**
+ * @brief Calculate mean deviation value of given container.
+ * 
+ * @param [in] begin - given begin iterator.
+ * @param [in] end - given end iterator.
+ * @return mean deviation.
+ */
+template <typename Iterator>
+double mdev(Iterator begin, Iterator end)
+{
+    if (begin == end)
+        return 0.0;
+
+    double m = mean(begin, end);
+    double total_deviation = 0.0;
+
+    for (Iterator it = begin; it != end; ++it)
+        total_deviation += std::abs(*it - m);
+
+    return total_deviation / std::distance(begin, end);
+}
 
 } // namespace utils
 } // namespace ntool

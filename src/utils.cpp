@@ -18,7 +18,7 @@
 
 #include <ntool/utils.hpp>
 #include <unistd.h>
-#include <print>
+
 
 namespace ntool {
 namespace utils {
