@@ -29,6 +29,8 @@
 
 #include <netinet/ip_icmp.h>
 #include <cstdint>
+#include <cstddef>
+#include <array>
 
 namespace ntool {
 
@@ -52,18 +54,19 @@ std::uint16_t calculate_checksum(void *buffer, std::size_t size);
 
 class ICMP
 {
+protected:
     icmphdr m_header; // ICMP header structure
 
 public:
     /** @brief ICMP object default constructor.*/
-    ICMP(void) = default;
+    explicit ICMP(void) = default;
 
     /**
      * @brief Construct a new ICMP object.
      * 
      * @param [in] header - given ICMP header structure.
      */
-    ICMP(const icmphdr& header);
+    explicit ICMP(const icmphdr& header);
 
     /**
      * @brief Construct a new ICMP object.
@@ -73,7 +76,7 @@ public:
      * @param [in] id - given identificator.
      * @param [in] sequence - given sequence number.
      */
-    ICMP(std::uint8_t type, std::uint8_t code, std::uint16_t id, std::uint16_t sequence);
+    explicit ICMP(std::uint8_t type, std::uint8_t code, std::uint16_t id, std::uint16_t sequence);
 
     /** @brief ICMP virtual destructor.*/
     virtual ~ICMP(void) = default;
@@ -143,6 +146,55 @@ public:
      * @return ICMP sequence number.
      */
     std::uint16_t sequence(void) const;
+};
+
+const std::uint32_t ICMP_PACKET_SIZE  = 64;
+const std::uint32_t ICMP_PAYLOAD_SIZE = 56;
+
+using ICMPPayload    = std::array<std::byte, ICMP_PAYLOAD_SIZE>;
+using ICMPPacketData = std::array<std::byte, ICMP_PACKET_SIZE>;
+
+class ICMPPacket : public ICMP
+{
+    // ICMPPayload m_payload;
+    ICMPPacketData m_data;
+
+public:
+    /** @brief ICMPPacket object default constructor.*/
+    explicit ICMPPacket(void) = default;
+    
+    /**
+     * @brief Create ICMP object.
+     * 
+     * @param [in] header - given ICMP header.
+     * @param [in] payload - given ICMP payload.
+     */
+    explicit ICMPPacket(const icmphdr& header, const ICMPPayload& payload);
+
+    /** @brief ICMPPacket object virtual destructor.*/
+    virtual ~ICMPPacket(void) = default;
+
+    /**
+     * @brief Set the packet to send.
+     * 
+     * @param [in] header - given ICMP header.
+     * @param [in] payload - given ICMP payload.
+     */
+    void set(const icmphdr& header, const ICMPPayload& payload);
+    
+    /**
+     * @brief Return packet payload.
+     * 
+     * @return payload bytes array.
+     */
+    ICMPPayload payload(void) const;
+
+    /**
+     * @brief Get ICMP packet data.
+     * 
+     * @return byte representation of ICMP packet. 
+     */
+    const ICMPPacketData& data(void) const;
 };
 
 } // namespace ntool

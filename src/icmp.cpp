@@ -19,9 +19,11 @@
 #include <ntool/icmp.hpp>
 #include <cstring>
 #include <string>
-#include <array>
+
 
 namespace ntool {
+
+// Auxilar functions ------------------------------------------------------------------
 
     static const std::array<std::string_view, 16> unreach_table = {
         "Destination network unreachable",
@@ -65,6 +67,8 @@ namespace ntool {
 
         return result;
     }
+
+// ICMP ------------------------------------------------------------------
 
     ICMP::ICMP(const icmphdr& header)
     {
@@ -128,4 +132,41 @@ namespace ntool {
     {
         return m_header.un.echo.sequence;
     }
+
+// ICMP Packet ------------------------------------------------------------------
+
+    ICMPPacket::ICMPPacket(const icmphdr& header, const ICMPPayload& payload)
+    {
+        set(header, payload);
+    }
+
+    void ICMPPacket::set(const icmphdr& header, const ICMPPayload& payload)
+    {
+        m_header         = header;
+        auto data        = m_data.data();
+        auto header_size = sizeof(m_header);
+
+        m_header.checksum = 0;
+        std::memcpy(data, &m_header, header_size);
+        std::copy(payload.begin(), payload.end(), m_data.begin() + header_size);
+
+        m_header.checksum = calculate_checksum(data, m_data.size());
+
+        m_data[2] = static_cast<std::byte>(m_header.checksum & 0xFFFF);
+        m_data[3] = static_cast<std::byte>(m_header.checksum >> 0x8);
+    }
+    
+    ICMPPayload ICMPPacket::payload(void) const
+    {
+        ICMPPayload p;
+        std::copy(m_data.begin() + sizeof(m_header), m_data.end(), p.begin());
+
+        return p;
+    }
+
+    const ICMPPacketData& ICMPPacket::data(void) const
+    {
+        return m_data;
+    }
+
 } // namespace ntool
