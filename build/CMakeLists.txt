@@ -18,7 +18,6 @@ set(SRC_DIR     ${CMAKE_SOURCE_DIR}/../src)
 
 # Set source files
 set(SRCS
-    "${SRC_DIR}/raw_socket.cpp"
     "${SRC_DIR}/utils.cpp"
     "${SRC_DIR}/icmp.cpp"
     "${SRC_DIR}/ping.cpp"
