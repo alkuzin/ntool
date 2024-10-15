@@ -66,7 +66,7 @@ static void summary(void) noexcept
     );
 
     if (rtt.empty())
-        utils::error("[ERROR] vector of RTT is empty");
+        utils::error("ntool: ping: vector of RTT is empty");
 
     double rtt_min  = *(std::min_element(rtt.begin(), rtt.end()));
     double rtt_avr  = utils::mean(rtt.begin(), rtt.end());
@@ -83,7 +83,7 @@ static void summary(void) noexcept
  *
  * @param [in] sig - given signal number.
  */
-static void sigint_handler(int sig)
+static void sigint_handler(int sig) noexcept
 {
     std::puts("HERE");
     std::exit(sig); // Exit the program
@@ -97,7 +97,7 @@ void ping_t::init(void) noexcept
     sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
 
     if (sockfd < 0)
-        utils::error("[ERROR] raw socket creation error");
+        utils::error("ntool: ping: raw socket creation error");
 
     std::signal(SIGINT, sigint_handler);
 }
@@ -108,7 +108,7 @@ void ping_t::init(void) noexcept
  * @param [in] target - given target text representation.
  * @return IP address.
  */
-static in_addr_t handle_target(const std::string_view& target)
+static in_addr_t handle_target(const std::string_view& target) noexcept
 {
     // handle localhost
     if (target.compare("localhost") == 0)
@@ -124,14 +124,14 @@ static in_addr_t handle_target(const std::string_view& target)
         hostent *he = gethostbyname(target.data());
 
         if (!he)
-            utils::error("[ERROR] cannot resolve the target");
+            utils::error("ntool: ping: cannot resolve the target");
 
         addr.sin_addr = *reinterpret_cast<in_addr*>(he->h_addr);
         return addr.sin_addr.s_addr;
     }
 }
 
-void ping_t::ping(const std::string_view& target, std::uint16_t n)
+void ping_t::ping(const std::string_view& target, std::uint16_t n) noexcept
 {
     // set destination address
     sockaddr_in addr;
@@ -180,7 +180,7 @@ void ping_t::ping(const std::string_view& target, std::uint16_t n)
             );
 
             if (kill(getpid(), SIGINT) == -1)
-                utils::error("[ERROR] failde to send SIGINT");
+                utils::error("ntool: ping: fail to send SIGINT");
             break;
 
         default:
@@ -233,7 +233,7 @@ void ping_t::send(const icmphdr& request, sockaddr_in& addr) noexcept
     begin_time = high_resolution_clock::now();
 
     if (ret <= 0)
-        utils::error("[ERROR] error to send ICMP packet");
+        utils::error("ntool: ping: error to send ICMP packet");
 
     transmitted_packets++;
 }
@@ -267,7 +267,7 @@ void ping_t::recv(icmphdr& reply, sockaddr_in& addr) noexcept
     end_time = high_resolution_clock::now();
 
     if (ret <= 0)
-        utils::error("[ERROR] error to receive ICMP packet");
+        utils::error("ntool: ping: error to receive ICMP packet");
 
     received_packets++;
     handle_packet(reply, packet);

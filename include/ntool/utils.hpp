@@ -35,14 +35,14 @@ namespace ntool {
 namespace utils {
 
 /** @brief Checks if current process is running as root.*/
-void terminate_if_not_root(void);
+void terminate_if_not_root(void) noexcept;
 
 /**
  * @brief Handle error.
  *
  * @param msg - given error message.
  */
-void error(const std::string_view& msg);
+void error(const std::string_view& msg) noexcept;
 
 /**
  * @brief Calculate mean value of given container.
@@ -52,7 +52,7 @@ void error(const std::string_view& msg);
  * @return mean value.
  */
 template <typename Iterator>
-double mean(Iterator begin, Iterator end)
+double mean(Iterator begin, Iterator end) noexcept
 {
     if (begin == end)
         return 0.0;
@@ -68,7 +68,7 @@ double mean(Iterator begin, Iterator end)
  * @return mean deviation.
  */
 template <typename Iterator>
-double mdev(Iterator begin, Iterator end)
+double mdev(Iterator begin, Iterator end) noexcept
 {
     if (begin == end)
         return 0.0;

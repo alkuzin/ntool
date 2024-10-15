@@ -40,12 +40,12 @@ inline const char *unreach_table[16] = {
     "Precedence cutoff in effect "
 };
 
-const char *unreach_decription(std::uint8_t code)
+const char *unreach_decription(std::uint8_t code) noexcept
 {
     return unreach_table[code];
 }
 
-std::uint16_t checksum(void *buffer, std::size_t size)
+std::uint16_t checksum(void *buffer, std::size_t size) noexcept
 {
     std::uint16_t *buf   = reinterpret_cast<std::uint16_t*>(buffer);
     std::uint32_t sum    = 0;

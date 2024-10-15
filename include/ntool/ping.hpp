@@ -65,7 +65,7 @@ public:
      * @param [in] target - given target to ping.
      * @param [in] n - given number of ping.
      */
-    void ping(const std::string_view& target, std::uint16_t n = 4);
+    void ping(const std::string_view& target, std::uint16_t n = 4) noexcept;
 };
 
 } // namespace ntool

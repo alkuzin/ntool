@@ -25,7 +25,7 @@
 namespace ntool {
 namespace utils {
 
-void terminate_if_not_root(void)
+void terminate_if_not_root(void) noexcept
 {
     if (geteuid() != 0)
         error("[ERROR] the process is not running as root");
@@ -43,7 +43,7 @@ void error(const std::string_view& msg)
  * @param [in] ch - given byte to convert.
  * @return character to print.
  */
-static inline char to_print(std::uint8_t ch)
+static inline char to_print(std::uint8_t ch) noexcept
 {
     return (ch > 31 && ch < 127)? ch : '.';
 }
