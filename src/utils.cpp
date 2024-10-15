@@ -28,7 +28,7 @@ namespace utils {
 void terminate_if_not_root(void) noexcept
 {
     if (geteuid() != 0)
-        error("[ERROR] the process is not running as root");
+        error("ntool: the process is not running as root");
 }
 
 void error(const std::string_view& msg)

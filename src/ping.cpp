@@ -66,7 +66,7 @@ static void summary(void) noexcept
     );
 
     if (rtt.empty())
-        utils::error("ntool: ping: vector of RTT is empty");
+        utils::error("ntool: ping: round-trip time wasn't calculated");
 
     double rtt_min  = *(std::min_element(rtt.begin(), rtt.end()));
     double rtt_avr  = utils::mean(rtt.begin(), rtt.end());
@@ -85,7 +85,7 @@ static void summary(void) noexcept
  */
 static void sigint_handler(int sig) noexcept
 {
-    std::puts("HERE");
+    summary();
     std::exit(sig); // Exit the program
 }
 
@@ -98,6 +98,22 @@ void ping_t::init(void) noexcept
 
     if (sockfd < 0)
         utils::error("ntool: ping: raw socket creation error");
+
+    // add limit time for receiving packet
+    timeval timeout;
+    timeout.tv_sec  = 2;    // seconds
+    timeout.tv_usec = 0;    // milliseconds
+
+    auto ret = setsockopt(
+        sockfd,
+        SOL_SOCKET,
+        SO_RCVTIMEO,
+        &timeout,
+        sizeof(timeout)
+    );
+
+    if (ret == -1)
+        utils::error("ntool: ping: error to set timeout");
 
     std::signal(SIGINT, sigint_handler);
 }
@@ -146,6 +162,7 @@ void ping_t::ping(const std::string_view& target, std::uint16_t n) noexcept
     icmphdr    request, reply;
     duration_t time;
 
+    target_ip_str   = inet_ntoa(addr.sin_addr);
     auto ping_count = 0;
     rtt.reserve(n);
 
@@ -158,8 +175,6 @@ void ping_t::ping(const std::string_view& target, std::uint16_t n) noexcept
 
         send(request, addr);
         recv(reply, addr);
-
-        target_ip_str = inet_ntoa(addr.sin_addr);
 
         // Handle received ICMP packet
         switch (reply.type) {
@@ -179,6 +194,7 @@ void ping_t::ping(const std::string_view& target, std::uint16_t n) noexcept
                 reply.un.echo.sequence, unreach_decription(reply.code)
             );
 
+            // terminate task
             if (kill(getpid(), SIGINT) == -1)
                 utils::error("ntool: ping: fail to send SIGINT");
             break;
@@ -266,8 +282,17 @@ void ping_t::recv(icmphdr& reply, sockaddr_in& addr) noexcept
 
     end_time = high_resolution_clock::now();
 
-    if (ret <= 0)
-        utils::error("ntool: ping: error to receive ICMP packet");
+    if (ret < 0) {
+        if (errno == EWOULDBLOCK) {
+            std::printf("From %s: Failed to receive packet\n", target_ip_str);
+
+            // terminate task
+            if (kill(getpid(), SIGINT) == -1)
+                utils::error("ntool: ping: fail to send SIGINT");
+        }
+        else
+            utils::error("ntool: ping: error to receive ICMP packet");
+    }
 
     received_packets++;
     handle_packet(reply, packet);
