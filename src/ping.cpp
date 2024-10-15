@@ -164,6 +164,10 @@ void ping_t::ping(const std::string_view& target, std::uint16_t n) noexcept
 
     target_ip_str   = inet_ntoa(addr.sin_addr);
     auto ping_count = 0;
+
+    if (n == 0)
+        n = 4;
+
     rtt.reserve(n);
 
     while (ping_count < n) {

@@ -18,6 +18,7 @@
 
 #include <ntool/utils.hpp>
 #include <ntool/ping.hpp>
+#include <getopt.h>
 #include <cstring>
 
 
@@ -32,6 +33,8 @@ static void help(void) noexcept
         "    --ping [options] [target]    ping specific IP address/hostname\n"
         "        -n [N] [target]          ping N times\n"
         "\n"
+        "    -h, --help                   display list of commands\n"
+        "\n"
         "EXAMPLES\n"
         "    ntool --ping 127.0.0.1       ping IP address\n"
         "    ntool --ping example.com     ping hostname\n"
@@ -43,33 +46,60 @@ static void help(void) noexcept
 
 int main(std::int32_t argc, char **argv)
 {
-    ntool::utils::terminate_if_not_root();
+    using namespace ntool::utils;
+    terminate_if_not_root();
 
     if (argc < 2)
         help();
 
-    if (std::strncmp(argv[1], "--ping", 6) == 0) {
-        ntool::ping_t ping;
+    static option long_options[] {
+        {"ping", no_argument, 0, 0},
+        {"help", no_argument, 0, 'h'},
+        {0, 0, 0, 0}
+    };
 
-        // handle ntool --ping [target]
-        if (argc == 3) {
-            ping.init();
-            ping.ping(argv[2]);
-        }
-        // handle ntool --ping -n [N] [target]
-        else if (argc == 5 && std::strncmp(argv[2], "-n", 2) == 0) {
-            ping.init();
-            ping.ping(argv[4], std::stoi(argv[3]));
-        }
-        else {
-            std::printf("ntool: ping: incorrect arguments\n\n");
+    std::int32_t opt, ping_count = 0;
+    bool is_ping = false;
+
+    while ((opt = getopt_long(argc, argv, "hn:", long_options, 0)) != -1) {
+        switch (opt) {
+        // handle --ping
+        case 0:
+            is_ping = true;
+            break;
+
+        // handle --ping -n [N]
+        case 'n':
+            ping_count = std::atoi(optarg);
+            break;
+
+        // handle -h, --help
+        case 'h':
             help();
+            break;
+
+        // handle unknown options
+        case '?':
+            error("Use -h or --help for usage.\n");
+            help();
+            break;
+
+        default:
+            break;
         }
     }
-    else {
-        std::printf("ntool: incorrect option: \"%s\"\n\n", argv[1]);
-        help();
+
+    if (is_ping) {
+        if (optind < argc) {
+            ntool::ping_t ping;
+            ping.init();
+            ping.ping(argv[optind], std::abs(ping_count));
+        }
+        else
+            error("ntool: expected target after --ping option");
     }
+    else
+        help();
 
     return 0;
 }
