@@ -28,45 +28,17 @@
 #ifndef _NTOOL_PING_HPP_
 #define _NTOOL_PING_HPP_
 
-#include <ntool/icmp.hpp>
-#include <string>
-
+#include <cstdint>
 
 namespace ntool {
 
-struct ping_t
-{
-private:
-    std::int32_t sockfd; // socket file descriptor
-
-    /**
-     * @brief Send ICMP packet.
-     *
-     * @param [in] request - given ICMP header.
-     * @param [in] addr - given destination address.
-     */
-    void send(const icmphdr& request, sockaddr_in& addr) noexcept;
-
-    /**
-     * @brief Receive ICMP packet.
-     *
-     * @param [in] reply - given ICMP header.
-     * @param [in] addr - given source address.
-     */
-    void recv(icmphdr& reply, sockaddr_in& addr) noexcept;
-
-public:
-    /** Initialize ping utility.*/
-    void init(void) noexcept;
-
-    /**
-     * @brief Ping given target.
-     *
-     * @param [in] target - given target to ping.
-     * @param [in] n - given number of ping.
-     */
-    void ping(const std::string_view& target, std::uint16_t n = 4) noexcept;
-};
+/**
+ * @brief Ping given target.
+ *
+ * @param [in] target - given target to ping.
+ * @param [in] n - given number of ping.
+ */
+void ping(const std::string_view& target, std::uint16_t n) noexcept;
 
 } // namespace ntool
 

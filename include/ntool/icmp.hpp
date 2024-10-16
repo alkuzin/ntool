@@ -33,6 +33,9 @@
 
 namespace ntool {
 
+inline const std::uint8_t ICMP_PACKET_SIZE  {64};
+inline const std::uint8_t ICMP_PAYLOAD_SIZE {56};
+
 /**
  * @brief Get destination unreachable description.
  *

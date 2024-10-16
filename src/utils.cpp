@@ -17,7 +17,10 @@
  */
 
 #include <ntool/utils.hpp>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include <unistd.h>
+#include <netdb.h>
 #include <cstring>
 #include <cstdio>
 
@@ -28,7 +31,7 @@ namespace utils {
 void terminate_if_not_root(void) noexcept
 {
     if (geteuid() != 0)
-        error("ntool: the process is not running as root");
+        error("ntool: this process must be run as root");
 }
 
 void error(const std::string_view& msg)
@@ -94,6 +97,30 @@ void memdump(const std::uint8_t *addr, std::size_t size) noexcept
         rows += 0x10;
     }
 }
+
+in_addr_t get_ip_address(const std::string_view& target) noexcept
+{
+    // handle localhost
+    if (target.compare("localhost") == 0)
+        return inet_addr("127.0.0.1");
+
+    sockaddr_in addr;
+
+    // handle string representation of IP address
+    if (inet_pton(AF_INET, target.data(), &(addr.sin_addr)) != 0)
+        return addr.sin_addr.s_addr;
+    else {
+        // handle hostname
+        hostent *he = gethostbyname(target.data());
+
+        if (!he)
+            utils::error("ntool: ping: cannot resolve the target");
+
+        addr.sin_addr = *reinterpret_cast<in_addr*>(he->h_addr);
+        return addr.sin_addr.s_addr;
+    }
+}
+
 
 } // namespace utils
 } // namespace ntool

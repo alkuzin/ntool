@@ -31,12 +31,56 @@
 
 namespace ntool {
 
+/** @brief Initialize ping utility.*/
+static void init(void) noexcept;
+
+/**
+ * @brief Set the ICMP packet.
+ *
+ * @param [out] packet - given received packet to process.
+ * @param [in] header - given ICMP header.
+ */
+static void set_packet(std::uint8_t *packet, const icmphdr& header) noexcept;
+
+/**
+ * @brief Send ICMP packet.
+ *
+ * @param [in] request - given ICMP header.
+ * @param [in] addr - given destination address.
+ */
+static void send(const icmphdr& request, sockaddr_in& addr) noexcept;
+
+/**
+ * @brief Get ICMP header from packet.
+ *
+ * @param [out] reply - given object to store ICMP packet.
+ * @param [in] packet - given received packet to process.
+ */
+static void handle_packet(icmphdr& reply, const std::uint8_t *packet) noexcept;
+
+/**
+ * @brief Receive ICMP packet.
+ *
+ * @param [in] reply - given ICMP header.
+ * @param [in] addr - given source address.
+ */
+static void recv(icmphdr& reply, sockaddr_in& addr) noexcept;
+
+/** @brief Get ping test statistics.*/
+static void summary(void) noexcept;
+
+/**
+ * @brief Handle keyboard interrupt.
+ *
+ * @param [in] sig - given signal number.
+ */
+static void sigint_handler(int sig) noexcept;
+
+inline const std::uint8_t DEFAULT_PINGS_COUNT {4};
+
 using namespace std::chrono;
 using time_point_t = time_point<high_resolution_clock>;
 using duration_t   = duration<double, std::milli>;
-
-inline const std::uint8_t ICMP_PACKET_SIZE  {64};
-inline const std::uint8_t ICMP_PAYLOAD_SIZE {56};
 
 static std::uint16_t transmitted_packets = 0;
 static std::uint16_t received_packets    = 0;
@@ -46,6 +90,7 @@ static std::uint8_t  ttl;           // packet time to live
 static std::vector<double> rtt;     // round-trip time (RTT)
 
 inline const char *target_ip_str = nullptr;
+static std::int32_t sockfd       = 0;
 
 // default ICMP payload
 inline const std::uint8_t payload[ICMP_PAYLOAD_SIZE]
@@ -53,48 +98,12 @@ inline const std::uint8_t payload[ICMP_PAYLOAD_SIZE]
     "!!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUV"
 };
 
-/** @brief Get ping test statistics.*/
-static void summary(void) noexcept
-{
-    auto ratio       = received_packets / transmitted_packets;
-    auto packet_loss = std::ceil(100.0 - (ratio * 100.0));
-
-    std::printf("\n--- %s ping statistics ---\n", target_ip_str);
-    std::printf("%u packets transmitted, %u received, %u%% packet loss\n",
-        transmitted_packets, received_packets,
-        static_cast<std::uint32_t>(packet_loss)
-    );
-
-    if (rtt.empty())
-        utils::error("ntool: ping: round-trip time wasn't calculated");
-
-    double rtt_min  = *(std::min_element(rtt.begin(), rtt.end()));
-    double rtt_avr  = utils::mean(rtt.begin(), rtt.end());
-    double rtt_max  = *(std::max_element(rtt.begin(), rtt.end()));
-    double rtt_mdev = utils::mdev(rtt.begin(), rtt.end());
-
-    std::printf("rtt min/avg/max/mdev = %.3f/%.3f/%.3f/%.3f ms\n",
-        rtt_min, rtt_avr, rtt_max, rtt_mdev
-    );
-}
-
-/**
- * @brief Handle keyboard interrupt.
- *
- * @param [in] sig - given signal number.
- */
-static void sigint_handler(int sig) noexcept
-{
-    summary();
-    std::exit(sig); // Exit the program
-}
-
-void ping_t::init(void) noexcept
+static void init(void) noexcept
 {
     transmitted_packets = 0;
     received_packets    = 0;
     ttl                 = 0;
-    sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
+    sockfd              = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
 
     if (sockfd < 0)
         utils::error("ntool: ping: raw socket creation error");
@@ -104,12 +113,8 @@ void ping_t::init(void) noexcept
     timeout.tv_sec  = 2;    // seconds
     timeout.tv_usec = 0;    // milliseconds
 
-    auto ret = setsockopt(
-        sockfd,
-        SOL_SOCKET,
-        SO_RCVTIMEO,
-        &timeout,
-        sizeof(timeout)
+    auto ret = setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO,
+        &timeout, sizeof(timeout)
     );
 
     if (ret == -1)
@@ -118,41 +123,14 @@ void ping_t::init(void) noexcept
     std::signal(SIGINT, sigint_handler);
 }
 
-/**
- * @brief Get IP addres of target.
- *
- * @param [in] target - given target text representation.
- * @return IP address.
- */
-static in_addr_t handle_target(const std::string_view& target) noexcept
+void ping(const std::string_view& target, std::uint16_t n) noexcept
 {
-    // handle localhost
-    if (target.compare("localhost") == 0)
-        return inet_addr("127.0.0.1");
+    init();
 
-    sockaddr_in addr;
-
-    // handle string representation of IP address
-    if (inet_pton(AF_INET, target.data(), &(addr.sin_addr)) != 0)
-        return addr.sin_addr.s_addr;
-    else {
-        // handle hostname
-        hostent *he = gethostbyname(target.data());
-
-        if (!he)
-            utils::error("ntool: ping: cannot resolve the target");
-
-        addr.sin_addr = *reinterpret_cast<in_addr*>(he->h_addr);
-        return addr.sin_addr.s_addr;
-    }
-}
-
-void ping_t::ping(const std::string_view& target, std::uint16_t n) noexcept
-{
     // set destination address
     sockaddr_in addr;
     addr.sin_family      = AF_INET;
-    addr.sin_addr.s_addr = handle_target(target);
+    addr.sin_addr.s_addr = utils::get_ip_address(target);
     addr.sin_port        = 0;
 
     std::printf("Pinging %s [%s] with %u bytes of data:\n",
@@ -165,8 +143,9 @@ void ping_t::ping(const std::string_view& target, std::uint16_t n) noexcept
     target_ip_str   = inet_ntoa(addr.sin_addr);
     auto ping_count = 0;
 
+    // handle incorrect number of pings
     if (n == 0)
-        n = 4;
+        n = DEFAULT_PINGS_COUNT;
 
     rtt.reserve(n);
 
@@ -218,13 +197,7 @@ void ping_t::ping(const std::string_view& target, std::uint16_t n) noexcept
     close(sockfd);
 }
 
-/**
- * @brief Set the ICMP packet.
- *
- * @param [out] packet - given received packet to process.
- * @param [in] header - given ICMP header.
- */
-void set_packet(std::uint8_t *packet, const icmphdr& header) noexcept
+static void set_packet(std::uint8_t *packet, const icmphdr& header) noexcept
 {
     icmphdr hdr  = header;
     hdr.checksum = 0;
@@ -239,7 +212,7 @@ void set_packet(std::uint8_t *packet, const icmphdr& header) noexcept
     packet[3]    = hdr.checksum >> 0x8;
 }
 
-void ping_t::send(const icmphdr& request, sockaddr_in& addr) noexcept
+void send(const icmphdr& request, sockaddr_in& addr) noexcept
 {
     static std::uint8_t packet[ICMP_PACKET_SIZE];
 
@@ -258,13 +231,7 @@ void ping_t::send(const icmphdr& request, sockaddr_in& addr) noexcept
     transmitted_packets++;
 }
 
-/**
- * @brief Get ICMP header from packet.
- *
- * @param [out] reply - given object to store ICMP packet.
- * @param [in] packet - given received packet to process.
- */
-void handle_packet(icmphdr& reply, const std::uint8_t *packet) noexcept
+static void handle_packet(icmphdr& reply, const std::uint8_t *packet) noexcept
 {
     iphdr   *ip_hdr   = std::bit_cast<iphdr*>(packet);
     icmphdr *icmp_hdr = std::bit_cast<icmphdr*>(packet + (ip_hdr->ihl * 4));
@@ -275,7 +242,7 @@ void handle_packet(icmphdr& reply, const std::uint8_t *packet) noexcept
     ttl   = ip_hdr->ttl;
 }
 
-void ping_t::recv(icmphdr& reply, sockaddr_in& addr) noexcept
+static void recv(icmphdr& reply, sockaddr_in& addr) noexcept
 {
     static std::uint8_t packet[ICMP_PACKET_SIZE];
 
@@ -300,6 +267,37 @@ void ping_t::recv(icmphdr& reply, sockaddr_in& addr) noexcept
 
     received_packets++;
     handle_packet(reply, packet);
+}
+
+static void summary(void) noexcept
+{
+    auto ratio       = received_packets / transmitted_packets;
+    auto packet_loss = std::ceil(100.0 - (ratio * 100.0));
+
+    std::printf("\n--- %s ping statistics ---\n", target_ip_str);
+    std::printf("%u packets transmitted, %u received, %u%% packet loss\n",
+        transmitted_packets, received_packets,
+        static_cast<std::uint32_t>(packet_loss)
+    );
+
+    if (rtt.empty())
+        utils::error("ntool: ping: round-trip time wasn't calculated");
+
+    double rtt_min  = *(std::min_element(rtt.begin(), rtt.end()));
+    double rtt_avr  = utils::mean(rtt.begin(), rtt.end());
+    double rtt_max  = *(std::max_element(rtt.begin(), rtt.end()));
+    double rtt_mdev = utils::mdev(rtt.begin(), rtt.end());
+
+    std::printf("rtt min/avg/max/mdev = %.3f/%.3f/%.3f/%.3f ms\n",
+        rtt_min, rtt_avr, rtt_max, rtt_mdev
+    );
+}
+
+static void sigint_handler(int sig) noexcept
+{
+    summary();
+    close(sockfd);
+    std::exit(sig);
 }
 
 } // namespace ntool

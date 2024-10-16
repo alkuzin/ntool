@@ -90,11 +90,8 @@ int main(std::int32_t argc, char **argv)
     }
 
     if (is_ping) {
-        if (optind < argc) {
-            ntool::ping_t ping;
-            ping.init();
-            ping.ping(argv[optind], std::abs(ping_count));
-        }
+        if (optind < argc)
+            ntool::ping(argv[optind], std::abs(ping_count));
         else
             error("ntool: expected target after --ping option");
     }

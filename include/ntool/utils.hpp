@@ -27,9 +27,11 @@
 #ifndef _NTOOL_UTILS_HPP_
 #define _NTOOL_UTILS_HPP_
 
+#include <netinet/in.h>
 #include <numeric>
 #include <cstdint>
 #include <string>
+
 
 namespace ntool {
 namespace utils {
@@ -89,6 +91,14 @@ double mdev(Iterator begin, Iterator end) noexcept
  * @param [in] size - given number of bytes to dump.
  */
 void memdump(const std::uint8_t *addr, std::size_t size) noexcept;
+
+/**
+ * @brief Get IP addres of target.
+ *
+ * @param [in] target - given target text representation.
+ * @return IP address.
+ */
+in_addr_t get_ip_address(const std::string_view& target) noexcept;
 
 } // namespace utils
 } // namespace ntool
