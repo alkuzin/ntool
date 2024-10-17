@@ -20,6 +20,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <numeric>
 #include <netdb.h>
 #include <cstring>
 #include <cstdio>
@@ -38,6 +39,26 @@ void error(const std::string_view& msg)
 {
     std::puts(msg.data());
     std::exit(EXIT_FAILURE);
+}
+
+double mean(const std::vector<double>& vec) noexcept
+{
+    auto begin = vec.begin();
+    auto end   = vec.end();
+    return std::accumulate(begin, end, 0.0) / std::distance(begin, end);
+}
+
+double mdev(const std::vector<double>& vec) noexcept
+{
+    auto begin = vec.begin();
+    auto end   = vec.end();
+    auto m     = mean(vec);
+    auto dev   = 0.0;
+
+    for (auto it = begin; it != end; ++it)
+        dev += std::abs(*it - m);
+
+    return dev / std::distance(begin, end);
 }
 
 /**

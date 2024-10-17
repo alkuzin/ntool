@@ -20,13 +20,13 @@
 #include <ntool/ping.hpp>
 #include <ntool/icmp.hpp>
 #include <arpa/inet.h>
+#include <algorithm>
 #include <unistd.h>
 #include <netdb.h>
 #include <cstring>
 #include <csignal>
-#include <chrono>
-#include <thread>
 #include <cmath>
+#include <ctime>
 
 
 namespace ntool {
@@ -78,14 +78,10 @@ static void sigint_handler(int sig) noexcept;
 
 inline const std::uint8_t DEFAULT_PINGS_COUNT {4};
 
-using namespace std::chrono;
-using time_point_t = time_point<high_resolution_clock>;
-using duration_t   = duration<double, std::milli>;
-
 static std::uint16_t transmitted_packets = 0;
 static std::uint16_t received_packets    = 0;
-static time_point_t  begin_time;    // sending packet time
-static time_point_t  end_time;      // receiving packet time
+static std::clock_t  begin_time;    // sending packet time
+static std::clock_t  end_time;      // receiving packet time
 static std::uint8_t  ttl;           // packet time to live
 static std::vector<double> rtt;     // round-trip time (RTT)
 
@@ -137,8 +133,8 @@ void ping(const std::string_view& target, std::uint16_t n) noexcept
         target.data(), inet_ntoa(addr.sin_addr), ICMP_PACKET_SIZE
     );
 
-    icmphdr    request, reply;
-    duration_t time;
+    icmphdr request, reply;
+    double  time;
 
     target_ip_str   = inet_ntoa(addr.sin_addr);
     auto ping_count = 0;
@@ -163,8 +159,8 @@ void ping(const std::string_view& target, std::uint16_t n) noexcept
         switch (reply.type) {
         case ICMP_ECHO:
         case ICMP_ECHOREPLY:
-            time = end_time - begin_time;
-            rtt.push_back(time.count());
+            time = static_cast<double>(end_time - begin_time);
+            rtt.push_back(time / CLOCKS_PER_SEC * 1000);
 
             std::printf("%u bytes from %s: icmp_seq=%u ttl=%u rtt=%.3lf ms\n",
                 ICMP_PACKET_SIZE, target_ip_str, reply.un.echo.sequence,
@@ -190,7 +186,7 @@ void ping(const std::string_view& target, std::uint16_t n) noexcept
         }
 
         // Delay time for 1 second
-        std::this_thread::sleep_for(milliseconds(1000));
+        sleep(1);
     }
 
     summary();
@@ -223,7 +219,7 @@ void send(const icmphdr& request, sockaddr_in& addr) noexcept
         std::bit_cast<sockaddr*>(&addr), sizeof(sockaddr_in)
     );
 
-    begin_time = high_resolution_clock::now();
+    begin_time = std::clock();
 
     if (ret <= 0)
         utils::error("ntool: ping: error to send ICMP packet");
@@ -251,7 +247,7 @@ static void recv(icmphdr& reply, sockaddr_in& addr) noexcept
         std::bit_cast<sockaddr*>(&addr), &len
     );
 
-    end_time = high_resolution_clock::now();
+    end_time = std::clock();
 
     if (ret < 0) {
         if (errno == EWOULDBLOCK) {
@@ -284,9 +280,9 @@ static void summary(void) noexcept
         utils::error("ntool: ping: round-trip time wasn't calculated");
 
     double rtt_min  = *(std::min_element(rtt.begin(), rtt.end()));
-    double rtt_avr  = utils::mean(rtt.begin(), rtt.end());
+    double rtt_avr  = utils::mean(rtt);
     double rtt_max  = *(std::max_element(rtt.begin(), rtt.end()));
-    double rtt_mdev = utils::mdev(rtt.begin(), rtt.end());
+    double rtt_mdev = utils::mdev(rtt);
 
     std::printf("rtt min/avg/max/mdev = %.3f/%.3f/%.3f/%.3f ms\n",
         rtt_min, rtt_avr, rtt_max, rtt_mdev

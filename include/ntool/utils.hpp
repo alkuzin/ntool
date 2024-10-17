@@ -28,9 +28,9 @@
 #define _NTOOL_UTILS_HPP_
 
 #include <netinet/in.h>
-#include <numeric>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 
 namespace ntool {
@@ -47,42 +47,20 @@ void terminate_if_not_root(void) noexcept;
 void error(const std::string_view& msg) noexcept;
 
 /**
- * @brief Calculate mean value of given container.
+ * @brief Calculate mean value of given vector.
  *
- * @param [in] begin - given begin iterator.
- * @param [in] end - given end iterator.
+ * @param [in] vec - given vector.
  * @return mean value.
  */
-template <typename Iterator>
-double mean(Iterator begin, Iterator end) noexcept
-{
-    if (begin == end)
-        return 0.0;
-
-    return std::accumulate(begin, end, 0.0) / std::distance(begin, end);
-}
+double mean(const std::vector<double>& vec) noexcept;
 
 /**
  * @brief Calculate mean deviation value of given container.
  *
- * @param [in] begin - given begin iterator.
- * @param [in] end - given end iterator.
+ * @param [in] vec - given vector.
  * @return mean deviation.
  */
-template <typename Iterator>
-double mdev(Iterator begin, Iterator end) noexcept
-{
-    if (begin == end)
-        return 0.0;
-
-    double m = mean(begin, end);
-    double total_deviation = 0.0;
-
-    for (Iterator it = begin; it != end; ++it)
-        total_deviation += std::abs(*it - m);
-
-    return total_deviation / std::distance(begin, end);
-}
+double mdev(const std::vector<double>& vec) noexcept;
 
 /**
  * @brief Dump memory.
