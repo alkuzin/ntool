@@ -3,6 +3,9 @@
 ## Ping
 <img src="res/ping.png">
 
+## Traceroute
+<img src="res/traceroute.png">
+
 ## Installation
 
 Clone this repository:
