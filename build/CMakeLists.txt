@@ -18,6 +18,7 @@ set(SRC_DIR     ${CMAKE_SOURCE_DIR}/../src)
 
 # Set source files
 set(SRCS
+    "${SRC_DIR}/traceroute.cpp"
     "${SRC_DIR}/utils.cpp"
     "${SRC_DIR}/icmp.cpp"
     "${SRC_DIR}/ping.cpp"
@@ -27,7 +28,7 @@ set(SRCS
 add_executable(ntool ${SRCS})
 
 # Set compiler flags
-set(CXXFLAGS -Wall -Werror -Wextra -g -fno-rtti -fno-exceptions)
+set(CXXFLAGS -Wall -Werror -Wextra -g -O2 -fno-rtti -fno-exceptions)
 target_compile_options(ntool PRIVATE ${CXXFLAGS})
 
 # Set include directories
