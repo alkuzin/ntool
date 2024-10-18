@@ -28,14 +28,19 @@
 #ifndef _NTOOL_TRACEROUTE_HPP_
 #define _NTOOL_TRACEROUTE_HPP_
 
+#include <cstdint>
+
+
 namespace ntool {
 
 /**
  * @brief Display trace route of given target.
  *
  * @param [in] target - given target to display.
+ * @param [in] h - given max number of hops.
+ * @param [in] q - given max number of queries.
  */
-void traceroute(const char *target) noexcept;
+void traceroute(const char *target, std::int32_t h, std::int32_t q) noexcept;
 
 } // namespace ntool
 

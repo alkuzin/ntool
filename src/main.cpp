@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <ntool/traceroute.hpp>
 #include <ntool/utils.hpp>
 #include <ntool/ping.hpp>
 #include <getopt.h>
@@ -34,11 +35,20 @@ static void help(void) noexcept
         "        -n [N] [target]          ping N times\n"
         "\n"
         "    -h, --help                   display list of commands\n"
+        "    --tr [options] [target]      get trace route to target\n"
+        "        -m [N]                   set max hops\n"
+        "        -q [N]                   set max queries\n"
         "\n"
         "EXAMPLES\n"
         "    ntool --ping 127.0.0.1       ping IP address\n"
         "    ntool --ping example.com     ping hostname\n"
         "    ntool --ping -n 6 127.0.0.1  ping 6 times\n"
+        "\n"
+        "    ntool --tr 127.0.0.1         traceroute IP address\n"
+        "    ntool --tr example.com       traceroute hostname\n"
+        "\n"
+        "    traceroute target with 10 max hops & 4 max queries:\n"
+        "    ntool --tr -m 10 -q 4 example.com       traceroute hostname\n"
         "\n"
     );
     std::exit(EXIT_SUCCESS);
@@ -54,6 +64,7 @@ int main(std::int32_t argc, char **argv)
 
     static option long_options[] {
         {"ping", no_argument, 0, 0},
+        {"tr", no_argument, 0, 1},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}
     };
@@ -61,16 +72,36 @@ int main(std::int32_t argc, char **argv)
     std::int32_t opt, ping_count = 0;
     bool is_ping = false;
 
-    while ((opt = getopt_long(argc, argv, "hn:", long_options, 0)) != -1) {
+    std::int32_t hops, queries = 0;
+    bool is_tr   = false;
+
+    while ((opt = getopt_long(argc, argv, "hn:m:q:", long_options, 0)) != -1) {
         switch (opt) {
         // handle --ping
         case 0:
             is_ping = true;
+            is_tr   = false;
             break;
 
         // handle --ping -n [N]
         case 'n':
             ping_count = std::atoi(optarg);
+            break;
+
+        // handle --tr
+        case 1:
+            is_tr   = true;
+            is_ping = false;
+            break;
+
+        // handle --tr -m [N]
+        case 'm':
+            hops = std::atoi(optarg);
+            break;
+
+        // handle --tr -q [N]
+        case 'q':
+            queries = std::atoi(optarg);
             break;
 
         // handle -h, --help
@@ -94,6 +125,12 @@ int main(std::int32_t argc, char **argv)
             ntool::ping(argv[optind], std::abs(ping_count));
         else
             error("ntool: expected target after --ping option");
+    }
+    else if (is_tr) {
+        if (optind < argc)
+            ntool::traceroute(argv[optind], std::abs(hops), std::abs(queries));
+        else
+            error("ntool: expected target after --tr option");
     }
     else
         help();

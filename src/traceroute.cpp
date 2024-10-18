@@ -25,6 +25,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <cstring>
+#include <csignal>
 #include <netdb.h>
 
 
@@ -36,16 +37,41 @@ namespace ntool {
  * @param [in] target - given target.
  * @return target info structure.
  */
-static addrinfo *init(const char *target) noexcept;
+addrinfo *init(const char *target) noexcept;
 
-inline const std::uint8_t MAX_HOPS {30};
+/**
+ * @brief Calculate round trip time.
+ *
+ * @param [in] begin - given begin time.
+ * @param [in] end - given end time.
+ * @return round trip time in milliseconds.
+ */
+inline std::uint32_t rtt(const timeval& begin, const timeval& end) noexcept;
 
-static std::int32_t sockfd      {0};
+/**
+ * @brief Print router info.
+ *
+ * @param [in] addr - given router address structure.
+ * @param [in] size - given router address size.
+ */
+inline void print_entry(const sockaddr_in& addr, std::size_t size) noexcept;
+
+/**
+ * @brief Handle keyboard interrupt.
+ *
+ * @param [in] sig - given signal number.
+ */
+static void sigint_handler(int sig) noexcept;
+
+inline const std::uint8_t MAX_HOPS      {30};
+inline const std::uint8_t MAX_QUERIES   {3};
+
 static std::int32_t max_hops    {MAX_HOPS};
-static timeval begin_time       {};
-static timeval end_time         {};
+static std::int32_t max_queries {MAX_QUERIES};
+static std::int32_t sockfd      {0};
 
-static addrinfo *init(const char *target) noexcept
+
+addrinfo *init(const char *target) noexcept
 {
     // set destination address
     addrinfo hints {};
@@ -68,40 +94,49 @@ static addrinfo *init(const char *target) noexcept
 
     auto ip    = reinterpret_cast<sockaddr_in*>(result->ai_addr);
     void *addr = &(ip->sin_addr);
+
     inet_ntop(result->ai_family, addr, ip_str, sizeof(ip_str));
 
     std::printf("traceroute to %s (%s), %u hops max, %d byte packets\n",
         target, ip_str, max_hops, ICMP_PACKET_SIZE
     );
 
+    std::signal(SIGINT, sigint_handler);
+
     return result;
 }
 
-void traceroute(const char *target) noexcept
+void traceroute(const char *target, std::int32_t h, std::int32_t q) noexcept
 {
+    std::uint8_t reply[ICMP_PACKET_SIZE]    {};
+    std::uint8_t packet[ICMP_PACKET_SIZE]   {};
+
+    timeval     timeout, begin_time, end_time;
+    sockaddr_in router_addr, prev_addr;
+    socklen_t   addr_len = sizeof(router_addr);
+    fd_set      readfds {};
+
+    if (h == 0)
+        h = MAX_HOPS;
+
+    if (q == 0)
+        q = MAX_QUERIES;
+
+    max_hops    = h;
+    max_queries = q;
+
     addrinfo *result = init(target);
 
     // set request ICMP header
-    std::uint8_t packet[ICMP_PACKET_SIZE] {};
-    std::uint8_t buffer[256] {};
-
     auto request        = reinterpret_cast<icmphdr*>(packet);
     request->type       = ICMP_ECHO;
     request->code       = 0;
     request->un.echo.id = getpid();
 
-    sockaddr_in router_addr {};
-    sockaddr_in prev_addr   {};
-    fd_set      readfds {};
-    timeval     timeout {};
-    socklen_t   addr_len = sizeof(router_addr);
-
     bool reached = false;
+    auto dest_ip = reinterpret_cast<sockaddr_in*>(result->ai_addr);
 
     std::int32_t activity {0};
-    iphdr *ip_hdr     = nullptr;
-    icmphdr *icmp_hdr = nullptr;
-    std::uint32_t rtt = 0;
 
     for (std::uint8_t ttl = 1; ttl <= max_hops; ttl++) {
         // set packet time to live (TTL)
@@ -114,7 +149,7 @@ void traceroute(const char *target) noexcept
         std::printf(" %2u ", ttl);
 
         // send several probe packets
-        for (std::uint16_t seq = 1; seq <= 3; seq++) {
+        for (std::uint16_t seq = 1; seq <= max_queries; seq++) {
             // update ICMP header
             request->un.echo.sequence = seq;
             request->checksum         = 0;
@@ -130,49 +165,42 @@ void traceroute(const char *target) noexcept
             FD_ZERO(&readfds);
             FD_SET(sockfd, &readfds);
 
-            timeout.tv_sec  = 0;
-            timeout.tv_usec = 600000; // 600 ms
+            timeout.tv_sec  = 1;
+            timeout.tv_usec = 0;
             activity        = select(sockfd + 1, &readfds, 0, 0, &timeout);
 
             if (activity > 0) {
-                if(recvfrom(sockfd, buffer, 256, 0,
+                if(recvfrom(sockfd, reply, ICMP_PACKET_SIZE, 0,
                     std::bit_cast<sockaddr*>(&router_addr), &addr_len) < 0) {
-                    perror("recvfrom failed");
-                    exit(EXIT_FAILURE);
+                    utils::error("ntool: traceroute: error to receive reply");
                 }
 
-                ip_hdr   = reinterpret_cast<iphdr*>(buffer);
-                icmp_hdr = std::bit_cast<icmphdr*>(buffer + (ip_hdr->ihl * 4));
-
                 gettimeofday(&end_time, nullptr);
-                rtt = (end_time.tv_sec - begin_time.tv_sec) * 1000 +
-                    (end_time.tv_usec - begin_time.tv_usec) / 1000;
 
                 if (seq == 1) {
-                    if (router_addr.sin_addr.s_addr == prev_addr.sin_addr.s_addr) {
+                    // handle case when previous & current
+                    // router addresses are equal
+                    auto& r_addr = router_addr.sin_addr.s_addr;
+                    auto& p_addr = prev_addr.sin_addr.s_addr;
+
+                    if (r_addr == p_addr) {
                         reached = true;
                         break;
                     }
 
-                    // Get the hostname
-                    static char hostname[NI_MAXHOST];
-
-                    if (getnameinfo((struct sockaddr *)&router_addr, sizeof(router_addr), hostname, sizeof(hostname), 0, 0, 0) != 0) {
-                        perror("getnameinfo");
-                        std::exit(EXIT_FAILURE);
-                    }
-
-                    std::printf(" %s (%s) ", hostname, inet_ntoa(router_addr.sin_addr));
+                    print_entry(router_addr, sizeof(router_addr));
                 }
-                std::printf(" %u ms", rtt);
+
+                std::printf(" %u ms", rtt(begin_time, end_time));
+
+                // finish traceroute when destination IP was reached
+                if (router_addr.sin_addr.s_addr == dest_ip->sin_addr.s_addr)
+                    reached = true;
 
                 prev_addr = router_addr;
-
-                if (icmp_hdr->type == ICMP_ECHOREPLY)
-                    reached = true;
             }
             else {
-                for (std::uint16_t i = seq; i <= 3; i++) {
+                for (std::uint16_t i = seq; i <= max_queries; i++) {
                     std::putchar(' ');
                     std::putchar('*');
                 }
@@ -184,6 +212,33 @@ void traceroute(const char *target) noexcept
 
     freeaddrinfo(result);
     close(sockfd);
+}
+
+inline std::uint32_t rtt(const timeval& begin, const timeval& end) noexcept
+{
+    auto sec      = (end.tv_sec - begin.tv_sec);
+    auto microsec = (end.tv_usec - begin.tv_usec);
+
+    return (sec * 1000) + (microsec / 1000);
+}
+
+inline void print_entry(const sockaddr_in& addr, std::size_t size) noexcept
+{
+    // Get the hostname
+    static char hostname[NI_MAXHOST];
+
+    if (getnameinfo(std::bit_cast<sockaddr*>(&addr), size, hostname,
+        sizeof(hostname), 0, 0, 0) != 0) {
+        utils::error("ntool: traceroute: get hostname error");
+    }
+
+    std::printf(" %s (%s) ", hostname, inet_ntoa(addr.sin_addr));
+}
+
+static void sigint_handler(int sig) noexcept
+{
+    close(sockfd);
+    std::exit(sig);
 }
 
 } // namespace ntool
