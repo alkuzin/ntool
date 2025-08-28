@@ -4,14 +4,17 @@
 //! Network diagnostic tool used to test the reachability
 //! of a host on an Internet Protocol (IP) network.
 
-use std::{
-    os::{fd::{FromRawFd, OwnedFd}, raw::c_void},
-    ptr::addr_of,
-    ffi::CStr,
-    net::{IpAddr, ToSocketAddrs}
-};
-use std::net::Ipv4Addr;
 use libc::*;
+use std::net::Ipv4Addr;
+use std::{
+    ffi::CStr,
+    net::{IpAddr, ToSocketAddrs},
+    os::{
+        fd::{FromRawFd, OwnedFd},
+        raw::c_void,
+    },
+    ptr::addr_of,
+};
 
 // TODO: move to utils module.
 /// Get errno error string.
@@ -40,12 +43,9 @@ fn hostname_to_ipv4(target: &str) -> Result<in_addr_t, String> {
             if let Some(addr) = addrs.find(|addr| addr.is_ipv4()) {
                 match addr.ip() {
                     IpAddr::V4(ip4) => Ok(ip4.to_bits()),
-                    IpAddr::V6(_) => {
-                        Err("Found only Ipv6 address".to_string())
-                    },
+                    IpAddr::V6(_) => Err("Found only Ipv6 address".to_string()),
                 }
-            }
-            else {
+            } else {
                 Err("Error to find Ipv4 address of target".to_string())
             }
         }
@@ -73,7 +73,10 @@ impl Ping {
         let sockfd = unsafe { socket(AF_INET, SOCK_RAW, IPPROTO_ICMP) };
 
         if sockfd == -1 {
-            return Err(format!("Error to create raw socket: {}", errno_error()));
+            return Err(format!(
+                "Error to create raw socket: {}",
+                errno_error()
+            ));
         }
 
         // Set time limit for receiving packet.
@@ -82,7 +85,7 @@ impl Ping {
             tv_usec: 0, // Milliseconds.
         };
 
-        let timeout_ptr  = addr_of!(timeout) as *const c_void;
+        let timeout_ptr = addr_of!(timeout) as *const c_void;
         let timeout_size = size_of::<timeval>() as socklen_t;
 
         // SOL_SOCKET - constant for socket-level options
@@ -90,7 +93,11 @@ impl Ping {
         // SO_RCVTIMEO - parameter for setting time limit for receiving packet.
         let ret = unsafe {
             setsockopt(
-                sockfd, SOL_SOCKET, SO_RCVTIMEO, timeout_ptr, timeout_size
+                sockfd,
+                SOL_SOCKET,
+                SO_RCVTIMEO,
+                timeout_ptr,
+                timeout_size,
             )
         };
 
@@ -100,9 +107,7 @@ impl Ping {
 
         let sockfd = unsafe { OwnedFd::from_raw_fd(sockfd) };
 
-        let ping = Self {
-            sockfd,
-        };
+        let ping = Self { sockfd };
 
         Ok(ping)
     }
@@ -120,7 +125,8 @@ impl Ping {
         let ping_range = 1..u8::MAX as usize;
 
         if !ping_range.contains(&count) {
-            let err = format!("Ping count should be in range {:#?}", ping_range);
+            let err =
+                format!("Ping count should be in range {:#?}", ping_range);
             return Err(err);
         }
 
@@ -128,7 +134,9 @@ impl Ping {
         let dest_addr = sockaddr_in {
             sin_family: AF_INET as sa_family_t,
             sin_port: 0,
-            sin_addr: in_addr { s_addr: hostname_to_ipv4(target)? },
+            sin_addr: in_addr {
+                s_addr: hostname_to_ipv4(target)?,
+            },
             sin_zero: [0u8; 8],
         };
 
@@ -141,5 +149,4 @@ impl Ping {
 
         Ok(())
     }
-
 }

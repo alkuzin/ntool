@@ -4,8 +4,8 @@
 //! CLI (Command-Line Interface) commands related declarations.
 
 use crate::config::{DESCRIPTION, NAME, VERSION};
-use clap::{Parser, Subcommand};
 use chrono::Datelike;
+use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[clap(about = DESCRIPTION)]

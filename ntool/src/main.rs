@@ -46,7 +46,7 @@ fn is_root() -> bool {
 /// - `Err` - otherwise.
 fn handle_command(command: &Commands) -> Result<(), String> {
     match command {
-        Commands::Ping {target, count} => {
+        Commands::Ping { target, count } => {
             let ping_handler = ntool_ping::Ping::new()?;
             ping_handler.ping(target, *count)?;
         }
