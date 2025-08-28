@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: Apache-2.0.
+# Copyright (C) 2025-present ntool project and contributors.
+
+# Project package info section.
+[package]
+name        = "ntool-ping"
+version     = "0.1.0"
+description = "Ntool ping network diagnostic tool"
+authors     = ["Alexander Kuzin <alkuzindev@gmail.com>"]
+repository  = "https://github.com/alkuzin/ntool/ntool-ping"
+license     = "Apache-2.0"
+edition     = "2024"
+
+# Project dependencies section.
+[dependencies]

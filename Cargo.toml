@@ -8,7 +8,7 @@
 # Type "3" mean (edition = "2024" default, requires Rust 1.84+).
 resolver = "3"
 # Packages to include in the workspace.
-members = ["ntool"]
+members = ["ntool", "ntool-ping"]
 
 # Shared dependencies across workspace crates.
 [workspace.dependencies]

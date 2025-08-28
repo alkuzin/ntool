@@ -13,6 +13,8 @@ edition     = "2024"
 
 # Project dependencies section.
 [dependencies]
+# Ntool ping network diagnostic tool.
+ntool-ping = { path = "../ntool-ping" }
 # Command-line argument parser.
 clap = { workspace = true }
 # Date and time handling library.

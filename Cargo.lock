@@ -224,7 +224,12 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "clap",
+ "ntool-ping",
 ]
+
+[[package]]
+name = "ntool-ping"
+version = "0.1.0"
 
 [[package]]
 name = "num-traits"
