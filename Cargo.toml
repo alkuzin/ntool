@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: Apache-2.0.
+# Copyright (C) 2025-present ntool project and contributors.
+
+# A workspace is a collection of one or more packages,
+# called workspace members, that are managed together.
+[workspace]
+# The resolver is a global option that affects the entire workspace.
+# Type "3" mean (edition = "2024" default, requires Rust 1.84+).
+resolver = "3"
+# Packages to include in the workspace.
+members = ["ntool"]
+
+# Shared dependencies across workspace crates.
+[workspace.dependencies]
+# Command-line argument parser.
+clap = { version = "4", features = ["derive"] }
+# Date and time handling library.
+chrono = "0.4"
