@@ -3,13 +3,22 @@
 
 //! Ntool entry point.
 
+use crate::cli::{Cli, Commands};
+use clap::Parser;
+
 mod cli;
 mod config;
 
 fn main() {
-    let args = cli::parse();
+    let args = Cli::parse();
 
     if args.version {
         cli::version();
+    }
+
+    match &args.command {
+        Commands::Ping {target, count} => {
+            ntool_ping::ping(target, *count);
+        }
     }
 }

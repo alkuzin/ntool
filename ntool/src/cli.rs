@@ -4,8 +4,8 @@
 //! CLI (Command-Line Interface) commands related declarations.
 
 use crate::config::{DESCRIPTION, NAME, VERSION};
+use clap::{Parser, Subcommand};
 use chrono::Datelike;
-use clap::Parser;
 
 #[derive(Parser)]
 #[clap(about = DESCRIPTION)]
@@ -14,15 +14,21 @@ pub struct Cli {
     /// Version flag.
     #[clap(short, long, help = "Display project version")]
     pub version: bool,
+    /// Tool subcommand.
+    #[clap(subcommand)]
+    pub command: Commands,
 }
 
-/// Parse the command-line arguments.
-///
-/// # Return
-/// - Parsed command-line arguments.
-pub fn parse() -> Cli {
-    let args = Cli::parse();
-    args
+/// Project CLI commands enumeration.
+#[derive(Subcommand)]
+pub enum Commands {
+    #[clap(about = "Ping specific IP address/hostname")]
+    Ping {
+        #[clap(help = "Target IP address or hostname")]
+        target: String,
+        #[clap(short, long, help = "Number of pings", default_value_t = 4)]
+        count: u8,
+    },
 }
 
 /// Display project version.
