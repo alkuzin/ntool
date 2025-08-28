@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0.
+# Copyright (C) 2025-present ntool project and contributors.
+
+# Project package info section.
+[package]
+name        = "ntool"
+version     = "0.1.0"
+description = "Multifunctional network analyser tool"
+authors     = ["Alexander Kuzin <alkuzindev@gmail.com>"]
+repository  = "https://github.com/alkuzin/ntool/ntool"
+license     = "Apache-2.0"
+edition     = "2024"
+
+# Project dependencies section.
+[dependencies]
+# Command-line argument parser.
+clap = { workspace = true }
+# Date and time handling library.
+chrono = { workspace = true }
