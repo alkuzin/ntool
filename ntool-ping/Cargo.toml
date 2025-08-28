@@ -13,3 +13,5 @@ edition     = "2024"
 
 # Project dependencies section.
 [dependencies]
+# Raw FFI bindings to platforms' system libraries.
+libc = { workspace = true }
