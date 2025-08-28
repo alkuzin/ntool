@@ -16,3 +16,5 @@ members = ["ntool", "ntool-ping"]
 clap = { version = "4", features = ["derive"] }
 # Date and time handling library.
 chrono = "0.4"
+# Raw FFI bindings to platforms' system libraries.
+libc = "0.2"

@@ -19,3 +19,5 @@ ntool-ping = { path = "../ntool-ping" }
 clap = { workspace = true }
 # Date and time handling library.
 chrono = { workspace = true }
+# Raw FFI bindings to platforms' system libraries.
+libc = { workspace = true }

@@ -224,12 +224,16 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "clap",
+ "libc",
  "ntool-ping",
 ]
 
 [[package]]
 name = "ntool-ping"
 version = "0.1.0"
+dependencies = [
+ "libc",
+]
 
 [[package]]
 name = "num-traits"
