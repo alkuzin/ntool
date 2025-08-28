@@ -7,8 +7,9 @@ use crate::config::{DESCRIPTION, NAME, VERSION};
 use chrono::Datelike;
 use clap::Parser;
 
-/// Command-line arguments struct.
 #[derive(Parser)]
+#[clap(about = DESCRIPTION)]
+/// Command-line arguments struct.
 pub struct Cli {
     /// Version flag.
     #[clap(short, long, help = "Display project version")]
