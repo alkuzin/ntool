@@ -27,7 +27,7 @@ pub enum Commands {
         #[clap(help = "Target IP address or hostname")]
         target: String,
         #[clap(short, long, help = "Number of pings", default_value_t = 4)]
-        count: u8,
+        count: usize,
     },
 }
 
