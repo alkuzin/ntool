@@ -4,10 +4,16 @@
 //! Network diagnostic tool used to test the reachability
 //! of a host on an Internet Protocol (IP) network.
 
-use std::{os::{fd::{FromRawFd, OwnedFd}, raw::c_void}, ptr::addr_of, ffi::CStr};
+use std::{
+    os::{fd::{FromRawFd, OwnedFd}, raw::c_void},
+    ptr::addr_of,
+    ffi::CStr,
+    net::{IpAddr, ToSocketAddrs}
+};
+use std::net::Ipv4Addr;
 use libc::*;
 
-/// TODO: move to utils module.
+// TODO: move to utils module.
 /// Get errno error string.
 ///
 /// # Return
@@ -15,6 +21,36 @@ use libc::*;
 fn errno_error() -> String {
     let str = unsafe { CStr::from_ptr(strerror(*__errno_location())) };
     str.to_string_lossy().to_string()
+}
+
+// TODO: move to utils module.
+/// Convert hostname to Ipv4 address.
+///
+/// # Parameters
+/// - `target` - given target to convert.
+///
+/// # Return
+/// - IPv4 address into an u32 representation - in case of success.
+/// - `Err` - otherwise.
+fn hostname_to_ipv4(target: &str) -> Result<in_addr_t, String> {
+    let hostname = format!("{target}:0");
+
+    match hostname.to_socket_addrs() {
+        Ok(mut addrs) => {
+            if let Some(addr) = addrs.find(|addr| addr.is_ipv4()) {
+                match addr.ip() {
+                    IpAddr::V4(ip4) => Ok(ip4.to_bits()),
+                    IpAddr::V6(_) => {
+                        Err("Found only Ipv6 address".to_string())
+                    },
+                }
+            }
+            else {
+                Err("Error to find Ipv4 address of target".to_string())
+            }
+        }
+        Err(err) => Err(err.to_string()),
+    }
 }
 
 /// Ping handling struct.
@@ -87,6 +123,21 @@ impl Ping {
             let err = format!("Ping count should be in range {:#?}", ping_range);
             return Err(err);
         }
+
+        // Set destination address.
+        let dest_addr = sockaddr_in {
+            sin_family: AF_INET as sa_family_t,
+            sin_port: 0,
+            sin_addr: in_addr { s_addr: hostname_to_ipv4(target)? },
+            sin_zero: [0u8; 8],
+        };
+
+        let target_ip = Ipv4Addr::from(dest_addr.sin_addr.s_addr);
+        const ICMP_PACKET_SIZE: usize = 64;
+        println!(
+            "Pinging {} [{}] with {} bytes of data",
+            target, target_ip, ICMP_PACKET_SIZE
+        );
 
         Ok(())
     }
